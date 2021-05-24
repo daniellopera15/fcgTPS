@@ -10,8 +10,6 @@ class CurveDrawer
 
 		// [Completar] Incialización y obtención de las ubicaciones de los atributos y variables uniformes
 		this.mvp = gl.getUniformLocation( this.prog, 'mvp' );
-		this.mvp_x = gl.getUniformLocation( this.prog, 'mvp_x' );
-		this.mvp_y = gl.getUniformLocation( this.prog, 'mvp_y' );
 		this.p0 = gl.getUniformLocation( this.prog, 'p0' );
 		this.p1 = gl.getUniformLocation( this.prog, 'p1' );
 		this.p2 = gl.getUniformLocation( this.prog, 'p2' );
@@ -28,6 +26,9 @@ class CurveDrawer
 		
 		// [Completar] Creacion del vertex buffer y seteo de contenido
 		this.buffer = gl.createBuffer();
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tv), gl.STATIC_DRAW);
 	}
 
 	// Actualización del viewport (se llama al inicializar la web o al cambiar el tamaño de la pantalla)
@@ -36,24 +37,10 @@ class CurveDrawer
 		// [Completar] Matriz de transformación.
 		// column-major.
 		var trans = [ 2/width,0,0,0,  0,-2/height,0,0, 0,0,1,0, -1,1,0,1 ];
-		
-		// Matriz para Bezier Cúbica del eje x
-		var trans_x = [ Math.pow(1 - this.t, 3), 0, 0, 0, 
-						3 * Math.pow(1 - this.t, 2), 0, 0, 0,
-						3 * (1 - this.t) * Math.pow(this.t, 2), 0, 0, 0,
-						Math.pow(this.t, 3), 0, 0, 0];
-
-		// Matriz para Bezier Cúbica del eje y		
-		var trans_y = [ 0, Math.pow(1 - this.t, 3), 0, 0,
-						0, 3 * Math.pow(1 - this.t, 2), 0, 0,
-						0, 3 * (1 - this.t) * Math.pow(this.t, 2), 0, 0,
-						0, Math.pow(this.t, 3), 0, 0];
 
 		// [Completar] Binding del programa y seteo de la variable uniforme para la matriz. 
 		gl.useProgram( this.prog );
 		gl.uniformMatrix4fv( this.mvp, false, trans );
-		gl.uniformMatrix4fv( this.mvp_x, false, trans_x );
-		gl.uniformMatrix4fv( this.mvp_y, false, trans_y );
 	}
 
 	updatePoints( pt )
@@ -61,14 +48,42 @@ class CurveDrawer
 		// [Completar] Actualización de las variables uniformes para los puntos de control
 		// [Completar] No se olviden de hacer el binding del programa antes de setear las variables 
 		// [Completar] Pueden acceder a las coordenadas de los puntos de control consultando el arreglo pt[]:
-		// var x = pt[i].getAttribute("cx");
-		// var y = pt[i].getAttribute("cy");
+
+		var points = [this.p0, this.p1, this.p2, this.p3];
+		gl.useProgram( this.prog );
+
+		for ( var i=0; i<4; ++i ) 
+		{
+			var p = [];
+			// Armamos el arreglo
+			var x = pt[i].getAttribute("cx");
+			var y = pt[i].getAttribute("cy");
+			
+			p.push(x);
+			p.push(y);
+
+			gl.uniform2fv(points[i], p);
+		}
+
 	}
 
 	draw()
 	{
 		// [Completar] Dibujamos la curva como una LINE_STRIP
 		// [Completar] No se olviden de hacer el binding del programa y de habilitar los atributos de los vértices
+		// Seleccionamos el shader
+		gl.useProgram( this.prog );
+
+		// Binding del buffer de posiciones
+		gl.bindBuffer( gl.ARRAY_BUFFER, this.buffer );
+
+		// Habilitamos el atributo 
+		gl.vertexAttribPointer( this.t, 1, gl.FLOAT, false, 0, 0 );
+		gl.enableVertexAttribArray( this.t );
+
+		// Dibujamos lineas utilizando primitivas gl.LINE_STRIP 
+		// https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawArrays
+		gl.drawArrays( gl.LINE_STRIP, 0, this.steps );
 	}
 }
 
@@ -80,15 +95,15 @@ class CurveDrawer
 var curvesVS = `
 	attribute float t;
 	uniform mat4 mvp;
-	uniform mat4 mvp_x;
-	uniform mat4 mvp_y;
 	uniform vec2 p0;
 	uniform vec2 p1;
 	uniform vec2 p2;
 	uniform vec2 p3;
 	void main()
-	{ 
-		gl_Position = mvp * ((mvp_x * vec4(p0[0],p1[0],p2[0],p3[0])) + (mvp_y * vec4(p0[1],p1[1],p2[1],p3[1])) + vec4(0,0,0,1));
+	{
+		float x = (1.0-t)*(1.0-t)*(1.0-t)*p0.x + 3.0*(1.0-t)*(1.0-t)*t*p1.x + 3.0*(1.0-t)*t*t*p2.x + t*t*t*p3.x;
+		float y = (1.0-t)*(1.0-t)*(1.0-t)*p0.y + 3.0*(1.0-t)*(1.0-t)*t*p1.y + 3.0*(1.0-t)*t*t*p2.y + t*t*t*p3.y;
+		gl_Position = mvp * vec4(x,y,0,1);
 	}
 `;
 
