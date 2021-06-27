@@ -95,8 +95,11 @@ class MeshDrawer
 
 		// 4. Obtenemos los IDs de los atributos de los vértices en los shaders
 
-		// ...
+		// Se crean los buffers
 		this.mesh_buffer = gl.createBuffer();
+
+		//Variable para guardar los vert del obj
+		this.vertPos;
 	}
 	
 	// Esta función se llama cada vez que el usuario carga un nuevo archivo OBJ.
@@ -110,6 +113,8 @@ class MeshDrawer
 		// [COMPLETAR] Actualizar el contenido del buffer de vértices
 		this.numTriangles = vertPos.length / 3;
 
+		this.vertPos = vertPos;
+
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertPos), gl.STATIC_DRAW);
 
@@ -120,6 +125,27 @@ class MeshDrawer
 	swapYZ( swap )
 	{
 		// [COMPLETAR] Setear variables uniformes en el vertex shader
+
+		if (swap) {
+
+			var invertVertPos = [];
+
+			for (var i = 0; i < this.vertPos.length / 3; i++) {
+			   invertVertPos.push(this.vertPos[i*3]);
+			   invertVertPos.push(this.vertPos[i*3 + 2]);
+			   invertVertPos.push(this.vertPos[i*3 + 1]);
+			}
+
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(invertVertPos), gl.STATIC_DRAW);
+
+		} else {
+
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertPos), gl.STATIC_DRAW);
+
+		}
+
 	}
 	
 	// Esta función se llama para dibujar la malla de triángulos
