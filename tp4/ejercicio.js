@@ -89,17 +89,26 @@ class MeshDrawer
 		
 		// 2. Obtenemos los IDs de las variables uniformes en los shaders
 		this.mvp = gl.getUniformLocation( this.prog, 'mvp' );
+		this.useTexture = gl.getUniformLocation(this.prog, 'useTexture') ;
+		this.shouldSwapYZ = gl.getUniformLocation(this.prog, 'swapYZ');
 
 		// 3. Obtenemos los IDs de los atributos de los vértices en los shaders
 		this.mesh_pos = gl.getAttribLocation(this.prog, 'pos');
 
 		// 4. Obtenemos los IDs de los atributos de los vértices en los shaders
+		this.tex_clr = gl.getAttribLocation(this.prog, 'clr');
 
 		// Se crean los buffers
 		this.mesh_buffer = gl.createBuffer();
+		this.tex_buffer = gl.createBuffer();
 
 		//Variable para guardar los vert del obj
 		this.vertPos;
+
+		gl.useProgram(this.prog);
+
+		gl.uniform1i(this.useTexture, 1);
+		gl.uniform1i(this.shouldSwapYZ, 0);
 	}
 	
 	// Esta función se llama cada vez que el usuario carga un nuevo archivo OBJ.
@@ -111,12 +120,15 @@ class MeshDrawer
 	setMesh( vertPos, texCoords )
 	{
 		// [COMPLETAR] Actualizar el contenido del buffer de vértices
-		this.numTriangles = vertPos.length / 3;
+		this.numTriangles = vertPos.length / 3 / 3;
 
-		this.vertPos = vertPos;
+		gl.useProgram(this.prog);
 
 		gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
 		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertPos), gl.STATIC_DRAW);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
 
 	}
 	
@@ -125,25 +137,11 @@ class MeshDrawer
 	swapYZ( swap )
 	{
 		// [COMPLETAR] Setear variables uniformes en el vertex shader
-
+		gl.useProgram(this.prog);
 		if (swap) {
-
-			var invertVertPos = [];
-
-			for (var i = 0; i < this.vertPos.length / 3; i++) {
-			   invertVertPos.push(this.vertPos[i*3]);
-			   invertVertPos.push(this.vertPos[i*3 + 2]);
-			   invertVertPos.push(this.vertPos[i*3 + 1]);
-			}
-
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(invertVertPos), gl.STATIC_DRAW);
-
+			gl.uniform1i(this.shouldSwapYZ, 1);
 		} else {
-
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertPos), gl.STATIC_DRAW);
-
+			gl.uniform1i(this.shouldSwapYZ, 0);
 		}
 
 	}
@@ -165,9 +163,15 @@ class MeshDrawer
 
 	    gl.vertexAttribPointer(this.mesh_pos, 3, gl.FLOAT, false, 0, 0);
 		gl.enableVertexAttribArray(this.mesh_pos);
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.tex_buffer);
+
+		gl.vertexAttribPointer(this.tex_clr, 2, gl.FLOAT, false, 0, 0);
+		gl.enableVertexAttribArray(this.tex_clr);
 		
 		// ...
 		// Dibujamos
+		gl.bindBuffer(gl.ARRAY_BUFFER, this.mesh_buffer);
 		gl.drawArrays( gl.TRIANGLES, 0, this.numTriangles * 3 );
 	}
 	
@@ -176,6 +180,25 @@ class MeshDrawer
 	setTexture( img )
 	{
 		// [COMPLETAR] Binding de la textura
+		const textura = gl.createTexture();
+
+		gl.activeTexture( gl.TEXTURE0 ); // digo que voy a usar la Texture Unit 0
+
+		gl.bindTexture( gl.TEXTURE_2D, textura);
+		gl.texImage2D( 
+			gl.TEXTURE_2D, // Textura 2D
+			0, // Mipmap nivel 0
+			gl.RGB, // formato (en GPU)
+			gl.RGB, // formato del input
+			gl.UNSIGNED_BYTE, // tipo
+			img // arreglo o <img>
+		);
+		gl.generateMipmap( gl.TEXTURE_2D ); 
+
+		var sampler = gl.getUniformLocation(this.prog, 'texGPU' );
+
+		gl.useProgram(this.prog );
+		gl.uniform1i (sampler, 0 ); // Unidad 0
 	}
 	
 	// Esta función se llama cada vez que el usuario cambia el estado del checkbox 'Mostrar textura'
@@ -183,6 +206,14 @@ class MeshDrawer
 	showTexture( show )
 	{
 		// [COMPLETAR] Setear variables uniformes en el fragment shader
+		gl.useProgram(this.prog);
+
+		if (show) {
+			gl.uniform1i(this.useTexture, 1);
+		} else {
+			gl.uniform1i(this.useTexture, 0);
+		}
+		
 	}
 }
 
@@ -191,18 +222,39 @@ class MeshDrawer
 // Las constantes en punto flotante necesitan ser expresadas como x.y, incluso si son enteros: ejemplo, para 4 escribimos 4.0
 var meshVS = `
 	attribute vec3 pos;
+	attribute vec2 clr;
 	uniform mat4 mvp;
+	uniform int swapYZ;
+	varying vec2 texCoord;
 	void main()
 	{ 
-		gl_Position = mvp * vec4(pos,1);
+		vec3 finalPos;
+		if (swapYZ == 1) {
+			finalPos = pos.xzy;
+		} else {
+			finalPos = pos.xyz;
+		}
+		
+		gl_Position = mvp * vec4(finalPos, 1);
+		texCoord = clr;
 	}
 `;
 
 // Fragment Shader
 var meshFS = `
 	precision mediump float;
+	uniform int useTexture;
+	uniform sampler2D texGPU;
+	varying vec2 texCoord;
+
+
 	void main()
 	{		
-		gl_FragColor = vec4(1,0,gl_FragCoord.z*gl_FragCoord.z,1);
+		if (useTexture == 0) {
+			gl_FragColor = vec4(1,0,gl_FragCoord.z*gl_FragCoord.z,1);
+		} else {
+			gl_FragColor = texture2D(texGPU,texCoord);
+		}
+		
 	}
 `;
