@@ -332,14 +332,18 @@ var meshFS = `
 	void main()
 	{		
 		vec4 kd;
+		vec4 ka;
 		if (useTexture == 0) {
 			kd = vec4(1.0,0.0,0.0,1.0);
+			ka = vec4(1.0,0.0,0.0,1.0);
 		} else {
 			kd = texture2D(texGPU,texCoord);
+			ka = texture2D(texGPU,texCoord);
 		}
 
 		//pre calculo todos las variables que hay en Blinn-Phong
 		vec4 I = vec4(1.0,1.0,1.0,1.0);
+		vec4 Ia = vec4(0.3,0.3,0.3,0.3);
 		vec4 ks = vec4(1.0,1.0,1.0,1.0);
 		float cosTheta = dot(normalize(light) , normalize(normCoord));
 		vec3 r = normalize(2.0 * cosTheta * normCoord - light);
@@ -348,7 +352,7 @@ var meshFS = `
 		float cosSigma = dot(r , v);
 		float cosOmega = dot(h, normalize(normCoord));
 
-		gl_FragColor = I * ( kd * max(0.0, cosTheta) + ks * pow(max(0.0, cosOmega), shininess));
+		gl_FragColor = I * ( kd * max(0.0, cosTheta) + ks * pow(max(0.0, cosOmega), shininess)) + Ia * ka;
 
 		//la otra version de la ecuacion
 		//gl_FragColor = I *  max(0.0, cosTheta) * ( kd + (ks * pow(max(0.0, cosOmega), shininess)) / cosTheta);
