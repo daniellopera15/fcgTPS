@@ -115,6 +115,7 @@ class MeshDrawer
 		this.useTexture = gl.getUniformLocation(this.prog, 'useTexture') ;
 		this.shouldSwapYZ = gl.getUniformLocation(this.prog, 'swapYZ');
 		this.light = gl.getUniformLocation(this.prog, 'light');
+		this.shininess = gl.getUniformLocation(this.prog, 'shininess');
 
 		// 3. Obtenemos los IDs de los atributos de los vértices en los shaders
 		this.mesh_pos = gl.getAttribLocation(this.prog, 'pos');
@@ -259,6 +260,9 @@ class MeshDrawer
 	setShininess( shininess )
 	{		
 		// [COMPLETAR] Setear variables uniformes en el fragment shader para especificar el brillo.
+		gl.useProgram(this.prog);
+
+		gl.uniform1f(this.shininess, shininess);
 	}
 }
 
@@ -280,10 +284,12 @@ var meshVS = `
 
 	uniform mat4 mvp;
 	uniform mat4 mv;
+	uniform mat3 mn;
 
 	varying vec2 texCoord;
 	varying vec3 normCoord;
 	varying vec4 vertCoord;
+	varying vec3 v;
 
 	uniform int swapYZ;
 
@@ -299,6 +305,8 @@ var meshVS = `
 
 		gl_Position = mvp * vec4(finalPos,1);
 		texCoord = clr;
+		normCoord = mn * normals;
+		vertCoord = mv * vec4(finalPos,1);
 	}
 `;
 
@@ -315,6 +323,7 @@ var meshFS = `
 	uniform int useTexture;
 	uniform mat3 mn;
 	uniform vec3 light;
+	uniform float shininess;
 
 	varying vec2 texCoord;
 	varying vec3 normCoord;
@@ -322,10 +331,26 @@ var meshFS = `
 
 	void main()
 	{		
+		vec4 kd;
 		if (useTexture == 0) {
-			gl_FragColor = vec4(1,0,0,1);
+			kd = vec4(1.0,0.0,0.0,1.0);
 		} else {
-			gl_FragColor = texture2D(texGPU,texCoord);
+			kd = texture2D(texGPU,texCoord);
 		}
+
+		//pre calculo todos las variables que hay en Blinn-Phong
+		vec4 I = vec4(1.0,1.0,1.0,1.0);
+		vec4 ks = vec4(1.0,1.0,1.0,1.0);
+		float cosTheta = dot(normalize(light) , normalize(normCoord));
+		vec3 r = normalize(2.0 * cosTheta * normCoord - light);
+		vec3 v = normalize(-(vertCoord.xyz));
+		vec3 h = normalize(light + normCoord);
+		float cosSigma = dot(r , v);
+		float cosOmega = dot(h, normalize(normCoord);
+
+		gl_FragColor = I * ( kd * max(0.0, cosTheta) + ks * pow(max(0.0, cosOmega), shininess));
+
+		//la otra version de la ecuacion
+		//gl_FragColor = I *  max(0.0, cosTheta) * ( kd + (ks * pow(max(0.0, cosOmega), shininess)) / cosTheta);
 	}
 `;
