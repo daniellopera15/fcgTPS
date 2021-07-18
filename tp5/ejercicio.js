@@ -346,7 +346,7 @@ var meshFS = `
 		vec3 v = normalize(-(vertCoord.xyz));
 		vec3 h = normalize(light + normCoord);
 		float cosSigma = dot(r , v);
-		float cosOmega = dot(h, normalize(normCoord);
+		float cosOmega = dot(h, normalize(normCoord));
 
 		gl_FragColor = I * ( kd * max(0.0, cosTheta) + ks * pow(max(0.0, cosOmega), shininess));
 
